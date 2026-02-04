@@ -16,6 +16,112 @@
         .btn-update { background: green; }
         .btn-cancel { background: gray; }
         .hidden { display: none; }
+        
+        /* Estilos do Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 30px;
+            border-radius: 8px;
+            width: 400px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            text-align: center;
+            animation: slideDown 0.3s;
+        }
+        
+        .modal-header {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .modal-body {
+            font-size: 16px;
+            margin-bottom: 20px;
+            color: #666;
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            min-width: 80px;
+        }
+        
+        .modal-btn-ok {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .modal-btn-ok:hover {
+            background: #45a049;
+        }
+        
+        .modal-btn-cancel {
+            background: #f44336;
+            color: white;
+        }
+        
+        .modal-btn-cancel:hover {
+            background: #da190b;
+        }
+        
+        .modal-btn-neutral {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .modal-btn-neutral:hover {
+            background: #0b7dda;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideDown {
+            from { 
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to { 
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        /* Ícones para o modal */
+        .modal-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .modal-icon-success { color: #4CAF50; }
+        .modal-icon-error { color: #f44336; }
+        .modal-icon-warning { color: #ff9800; }
+        .modal-icon-question { color: #2196F3; }
     </style>
 </head>
 <body>
@@ -49,9 +155,85 @@
         <tbody></tbody>
     </table>
 
+    <!-- Modal -->
+    <div id="customModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-icon" id="modalIcon"></div>
+            <div class="modal-header" id="modalHeader"></div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
     <script>
         // Carregar clientes ao abrir a página
         window.onload = carregarClientes;
+        
+        // ========== FUNÇÕES DO MODAL ==========
+        
+        function mostrarModal(tipo, titulo, mensagem, callback) {
+            const modal = document.getElementById('customModal');
+            const modalIcon = document.getElementById('modalIcon');
+            const modalHeader = document.getElementById('modalHeader');
+            const modalBody = document.getElementById('modalBody');
+            const modalFooter = document.getElementById('modalFooter');
+            
+            // Definir ícone
+            const icones = {
+                success: '✓',
+                error: '✗',
+                warning: '⚠',
+                question: '?'
+            };
+            
+            modalIcon.innerHTML = icones[tipo] || '!';
+            modalIcon.className = 'modal-icon modal-icon-' + tipo;
+            
+            // Definir título e mensagem
+            modalHeader.textContent = titulo;
+            modalBody.textContent = mensagem;
+            
+            // Definir botões
+            if (tipo === 'question') {
+                // Modal de confirmação (Sim/Não)
+                modalFooter.innerHTML = `
+                    <button class="modal-btn modal-btn-ok" onclick="fecharModal(true)">Sim</button>
+                    <button class="modal-btn modal-btn-cancel" onclick="fecharModal(false)">Não</button>
+                `;
+                
+                // Guardar callback para confirmação
+                window.modalCallback = callback;
+            } else {
+                // Modal de informação (OK)
+                modalFooter.innerHTML = `
+                    <button class="modal-btn modal-btn-neutral" onclick="fecharModal()">OK</button>
+                `;
+                window.modalCallback = callback;
+            }
+            
+            modal.style.display = 'block';
+        }
+        
+        function fecharModal(confirmado) {
+            const modal = document.getElementById('customModal');
+            modal.style.display = 'none';
+            
+            // Executar callback se existir
+            if (window.modalCallback) {
+                window.modalCallback(confirmado);
+                window.modalCallback = null;
+            }
+        }
+        
+        // Fechar modal ao clicar fora
+        window.onclick = function(event) {
+            const modal = document.getElementById('customModal');
+            if (event.target === modal) {
+                fecharModal(false);
+            }
+        }
+        
+        // ========== FUNÇÕES DO CRUD ==========
         
         async function carregarClientes() {
             const response = await fetch('/clientes');
@@ -69,7 +251,7 @@
                     <td>${cliente.telefone || ''}</td>
                     <td>
                         <button class="btn-edit" onclick="editarCliente(${cliente.id})">Editar</button>
-                        <button class="btn-delete" onclick="excluirCliente(${cliente.id})">Excluir</button>
+                        <button class="btn-delete" onclick="confirmarExclusao(${cliente.id})">Excluir</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -86,19 +268,23 @@
             
             // Validação básica
             if (!cliente.nome || !cliente.email) {
-                alert('Preencha Nome e Email!');
+                mostrarModal('warning', 'Atenção', 'Preencha Nome e Email!');
                 return;
             }
             
-            await fetch('/clientes', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(cliente)
-            });
-            
-            limparForm();
-            carregarClientes();
-            alert('Cliente cadastrado com sucesso!');
+            try {
+                await fetch('/clientes', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(cliente)
+                });
+                
+                limparForm();
+                carregarClientes();
+                mostrarModal('success', 'Sucesso', 'Cliente cadastrado com sucesso!');
+            } catch (error) {
+                mostrarModal('error', 'Erro', 'Erro ao cadastrar cliente!');
+            }
         }
         
         // Função para ATUALIZAR cliente existente (PUT)
@@ -112,19 +298,23 @@
             
             // Validação básica
             if (!cliente.nome || !cliente.email) {
-                alert('Preencha Nome e Email!');
+                mostrarModal('warning', 'Atenção', 'Preencha Nome e Email!');
                 return;
             }
             
-            await fetch(`/clientes/${id}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(cliente)
-            });
-            
-            limparForm();
-            carregarClientes();
-            alert('Cliente atualizado com sucesso!');
+            try {
+                await fetch(`/clientes/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(cliente)
+                });
+                
+                limparForm();
+                carregarClientes();
+                mostrarModal('success', 'Sucesso', 'Cliente atualizado com sucesso!');
+            } catch (error) {
+                mostrarModal('error', 'Erro', 'Erro ao atualizar cliente!');
+            }
         }
         
         // Função para carregar dados do cliente no formulário (modo EDIÇÃO)
@@ -145,11 +335,27 @@
             }
         }
         
+        // Confirmar exclusão com modal
+        function confirmarExclusao(id) {
+            mostrarModal(
+                'question',
+                'Confirmar Exclusão',
+                'Tem certeza que deseja excluir este cliente?',
+                function(confirmado) {
+                    if (confirmado) {
+                        excluirCliente(id);
+                    }
+                }
+            );
+        }
+        
         async function excluirCliente(id) {
-            if (confirm('Tem certeza que deseja excluir este cliente?')) {
+            try {
                 await fetch(`/clientes/${id}`, {method: 'DELETE'});
                 carregarClientes();
-                alert('Cliente excluído com sucesso!');
+                mostrarModal('success', 'Sucesso', 'Cliente excluído com sucesso!');
+            } catch (error) {
+                mostrarModal('error', 'Erro', 'Erro ao excluir cliente!');
             }
         }
         
